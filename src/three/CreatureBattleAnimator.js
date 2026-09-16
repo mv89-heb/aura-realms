@@ -10,14 +10,14 @@ const DEFAULT_CLIPS = Object.freeze({
 const sleep = ms => new Promise(resolve => window.setTimeout(resolve, ms));
 
 /**
- * Battle animation orchestration for optional GLB creatures.
- * Missing clips are treated as a normal fallback so procedural creatures
- * and incomplete GLBs never break the battle flow.
+ * Battle animation orchestration for GLB creatures with a zero-cost
+ * procedural fallback for the built-in creatures.
  */
 export class CreatureBattleAnimator {
-  constructor(runtime, { clips = DEFAULT_CLIPS } = {}) {
+  constructor(runtime, { clips = DEFAULT_CLIPS, fallback = null } = {}) {
     this.runtime = runtime;
     this.clips = clips;
+    this.fallback = fallback;
     this.current = new Map();
   }
 
@@ -33,17 +33,23 @@ export class CreatureBattleAnimator {
 
   play(id, state, options = {}) {
     const clip = this.resolveClip(id, state);
-    if (!clip) return false;
-    const played = this.runtime.play(id, clip, options);
+    if (clip) {
+      const played = this.runtime.play(id, clip, options);
+      if (played) this.current.set(id, state);
+      return played;
+    }
+    const played = this.fallback?.play(id, state) || false;
     if (played) this.current.set(id, state);
     return played;
   }
 
   stop(id, state = this.current.get(id)) {
     const clip = this.resolveClip(id, state);
-    if (!clip) return false;
-    this.runtime.visuals.stop(id, clip);
-    return true;
+    if (clip) {
+      this.runtime.visuals.stop(id, clip);
+      return true;
+    }
+    return this.fallback?.stop(id) || false;
   }
 
   async attack(id, { hitDelay = 260, recoveryDelay = 420 } = {}) {
