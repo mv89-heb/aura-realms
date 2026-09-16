@@ -7,6 +7,7 @@ export class CreatureBattleIntegration {
     this.originalBattleTurn = null;
     this.originalOpenBattle = null;
     this.originalCloseBattle = null;
+    this.victoryTimer = 0;
     this.attached = false;
   }
 
@@ -42,7 +43,7 @@ export class CreatureBattleIntegration {
     this.originalBattleTurn = this.game.battleTurn.bind(this.game);
     this.game.battleTurn = multiplier => {
       const battle = this.game.battle;
-      if (!battle) return;
+      if (!battle || battle.ending) return;
       if (this.feedback && !this.feedback.startTurn()) return;
 
       const ids = battle.animationIds || {
@@ -74,6 +75,8 @@ export class CreatureBattleIntegration {
     this.game.closeBattle = victory => {
       const battle = this.game.battle;
       if (victory && battle) {
+        if (battle.ending) return;
+        battle.ending = true;
         const ids = battle.animationIds || {
           player: CreatureBattleIntegration.playerId(this.game),
           enemy: CreatureBattleIntegration.wildId(battle.wild)
@@ -81,6 +84,12 @@ export class CreatureBattleIntegration {
         this.playAll(ids.enemy, 'defeat');
         this.playAll(ids.player, 'victory');
         this.feedback?.show('VICTORY!', 1100);
+        clearTimeout(this.victoryTimer);
+        this.victoryTimer = window.setTimeout(() => {
+          this.victoryTimer = 0;
+          if (this.game.battle === battle) this.originalCloseBattle(true);
+        }, 900);
+        return;
       }
       return this.originalCloseBattle(victory);
     };
@@ -91,6 +100,8 @@ export class CreatureBattleIntegration {
 
   dispose() {
     if (!this.attached) return;
+    clearTimeout(this.victoryTimer);
+    this.victoryTimer = 0;
     this.game.openBattle = this.originalOpenBattle;
     this.game.battleTurn = this.originalBattleTurn;
     this.game.closeBattle = this.originalCloseBattle;
