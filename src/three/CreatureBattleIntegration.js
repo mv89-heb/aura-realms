@@ -54,10 +54,9 @@ export class CreatureBattleIntegration {
         if (this.game.battle.playerHp < playerHpBefore) {
           void this.animator.receiveHit(ids.player);
         }
-      } else if (this.game.save.wins === (this.game.save.wins || 0)) {
-        // The original battle flow already handled the outcome. A closed battle
-        // without a win is the defeat/retreat path; victory animation is handled
-        // by the closeBattle wrapper below.
+      } else {
+        // A battle that closes from battleTurn without a victory is the
+        // player's defeat path; the victory path is handled by closeBattle.
         void this.animator.receiveHit(ids.player);
       }
     };
