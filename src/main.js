@@ -1,10 +1,6 @@
-import Phaser from 'phaser';
-import { gameConfig } from './config/gameConfig.js';
-import BootScene from './scenes/BootScene.js';
-import WorldScene from './scenes/WorldScene.js';
-import BattleScene from './scenes/BattleScene.js';
+import { AuraRealms3D } from './three/AuraRealms3D.js';
 
-new Phaser.Game({
-  ...gameConfig,
-  scene: [BootScene, WorldScene, BattleScene]
-});
+const game = new AuraRealms3D(document.getElementById('game'));
+game.start();
+
+window.addEventListener('resize', () => game.resize());
