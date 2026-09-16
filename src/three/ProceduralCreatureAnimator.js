@@ -62,6 +62,13 @@ export class ProceduralCreatureAnimator {
     if (state.aura?.material) state.aura.material.opacity = state.baseAuraOpacity;
   }
 
+  finishIfExpired(id, state, duration) {
+    if (state.elapsed < duration) return false;
+    this.resetState(state);
+    this.states.delete(id);
+    return true;
+  }
+
   update(delta) {
     for (const [id, state] of this.states) {
       const root = state.root;
@@ -76,24 +83,26 @@ export class ProceduralCreatureAnimator {
         const phase = clamp01(t / 0.26);
         root.position.z = state.basePosition.z - Math.sin(phase * Math.PI) * 0.24;
         root.scale.copy(state.baseScale).multiplyScalar(1 + Math.sin(phase * Math.PI) * 0.13);
+        this.finishIfExpired(id, state, 0.34);
       } else if (state.state === 'burst') {
         const phase = clamp01(t / 0.34);
         const pulse = Math.sin(phase * Math.PI);
         root.position.z = state.basePosition.z - pulse * 0.34;
         root.scale.copy(state.baseScale).multiplyScalar(1 + pulse * 0.2);
-        if (state.aura) {
+        if (state.aura && state.baseAuraScale) {
           state.aura.scale.copy(state.baseAuraScale).multiplyScalar(1 + pulse * 0.42);
           if (state.aura.material) state.aura.material.opacity = state.baseAuraOpacity + pulse * 0.2;
         }
+        this.finishIfExpired(id, state, 0.42);
       } else if (state.state === 'hit') {
         const decay = Math.exp(-t * 8.5);
         root.rotation.z = state.baseRotationZ + Math.sin(t * 48) * 0.11 * decay;
         root.position.x = state.basePosition.x + Math.sin(t * 55) * 0.075 * decay;
+        this.finishIfExpired(id, state, 0.62);
       } else if (state.state === 'defeat') {
         const phase = clamp01(t / 0.9);
         root.scale.copy(state.baseScale).multiplyScalar(Math.max(0.06, 1 - phase * 0.94));
         root.rotation.z = state.baseRotationZ + phase * 0.75;
-        root.position.y = state.basePosition.y + Math.sin(phase * Math.PI) * 0.18;
       } else if (state.state === 'victory') {
         const bounce = Math.abs(Math.sin(t * 7.5)) * Math.exp(-t * 0.9);
         root.position.y = state.basePosition.y + bounce * 0.42;
