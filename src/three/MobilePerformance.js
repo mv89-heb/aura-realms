@@ -60,13 +60,18 @@ export function batchEnvironment(world) {
     const crownSource = trees[0].children[1];
     const trunks = makeInstancedMesh(trunkSource, trees.length);
     const crowns = makeInstancedMesh(crownSource, trees.length);
-    const matrix = new THREE.Matrix4();
+    const treeMatrix = new THREE.Matrix4();
+    const childMatrix = new THREE.Matrix4();
 
     trees.forEach((tree, i) => {
       tree.updateMatrixWorld(true);
-      matrix.copy(tree.matrixWorld);
-      trunks.setMatrixAt(i, matrix);
-      crowns.setMatrixAt(i, matrix);
+      treeMatrix.copy(tree.matrixWorld);
+
+      childMatrix.multiplyMatrices(treeMatrix, trunkSource.matrix);
+      trunks.setMatrixAt(i, childMatrix);
+
+      childMatrix.multiplyMatrices(treeMatrix, crownSource.matrix);
+      crowns.setMatrixAt(i, childMatrix);
     });
 
     trunks.instanceMatrix.needsUpdate = true;
@@ -74,7 +79,6 @@ export function batchEnvironment(world) {
     trunks.computeBoundingSphere();
     crowns.computeBoundingSphere();
     world.add(trunks, crowns);
-
     trees.forEach(tree => world.remove(tree));
   }
 
