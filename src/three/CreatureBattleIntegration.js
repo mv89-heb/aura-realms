@@ -61,9 +61,12 @@ export class CreatureBattleIntegration {
       this.playAll(ids.player, attackState);
       this.originalBattleTurn(multiplier);
 
-      if (this.game.battle) {
-        const enemyDamage = enemyHpBefore - this.game.battle.enemy.currentHp;
-        const playerDamage = playerHpBefore - this.game.battle.playerHp;
+      const activeBattle = this.game.battle;
+      if (activeBattle?.ending) return;
+
+      if (activeBattle) {
+        const enemyDamage = enemyHpBefore - activeBattle.enemy.currentHp;
+        const playerDamage = playerHpBefore - activeBattle.playerHp;
         if (enemyDamage > 0) {
           this.playAll(ids.enemy, 'hit');
           this.feedback?.hit({ critical: burst, burst });
