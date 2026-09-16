@@ -5,6 +5,9 @@ import { calculateDamage } from '../systems/BattleSystem.js';
 
 const WORLD_SIZE = 120;
 const PLAYER_SPEED = 7;
+const CREATURE_LOD_LOW = 20;
+const CREATURE_LOD_HIDDEN = 52;
+const WILD_UPDATE_SKIP_DISTANCE = 48;
 
 export class AuraRealms3D {
   constructor(container) {
@@ -18,10 +21,10 @@ export class AuraRealms3D {
     this.camera = new THREE.PerspectiveCamera(52, 1, 0.1, 250);
     this.camera.position.set(0, 8, 13);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.enabled = false;
+    this.renderer.shadowMap.autoUpdate = false;
     this.container.appendChild(this.renderer.domElement);
 
     this.world = new THREE.Group();
@@ -48,16 +51,12 @@ export class AuraRealms3D {
   }
 
   setupLights() {
-    const hemi = new THREE.HemisphereLight(0xd9f6ff, 0x35502f, 2.2);
+    const hemi = new THREE.HemisphereLight(0xd9f6ff, 0x35502f, 1.85);
     this.scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xfff4d0, 3.2);
+
+    const sun = new THREE.DirectionalLight(0xfff4d0, 2.0);
     sun.position.set(-25, 35, 15);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.left = -70;
-    sun.shadow.camera.right = 70;
-    sun.shadow.camera.top = 70;
-    sun.shadow.camera.bottom = -70;
+    sun.castShadow = false;
     this.scene.add(sun);
   }
 
@@ -67,7 +66,6 @@ export class AuraRealms3D {
       new THREE.MeshStandardMaterial({ color: 0x63a95f, roughness: 1 })
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
     this.world.add(ground);
 
     const river = new THREE.Mesh(
@@ -91,7 +89,6 @@ export class AuraRealms3D {
     trunk.position.y = 1.25;
     const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(1.8, 1), new THREE.MeshStandardMaterial({ color: 0x2f7d45, roughness: 0.9 }));
     crown.position.y = 3.1;
-    trunk.castShadow = crown.castShadow = true;
     group.add(trunk, crown);
     group.position.copy(pos);
     group.scale.setScalar(0.75 + Math.random() * 0.65);
@@ -103,7 +100,6 @@ export class AuraRealms3D {
     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.8 + Math.random() * 0.8, 0), new THREE.MeshStandardMaterial({ color: 0x71807b, roughness: 1 }));
     rock.position.set(pos.x, 0.55, pos.z);
     rock.rotation.set(Math.random(), Math.random(), Math.random());
-    rock.castShadow = true;
     this.world.add(rock);
   }
 
@@ -140,7 +136,7 @@ export class AuraRealms3D {
     const ids = ['mossli', 'aquini', 'emberu', 'voltin', 'nocti'];
     ids.forEach((id, index) => {
       const data = CREATURES[id];
-      const mesh = this.createCreatureMesh(data, false);
+      const mesh = this.createCreatureLOD(data);
       const angle = index * 1.2 + 0.4;
       mesh.position.set(Math.cos(angle) * (12 + index * 4), 0, Math.sin(angle) * (12 + index * 4));
       mesh.userData = { ...mesh.userData, data, home: mesh.position.clone(), phase: Math.random() * Math.PI * 2, speed: 0.35 + Math.random() * 0.45 };
@@ -149,35 +145,78 @@ export class AuraRealms3D {
     });
   }
 
-  createCreatureMesh(data, player) {
+  createCreatureLOD(data) {
+    const lod = new THREE.LOD();
+    const high = this.createCreatureMesh(data, false, 'high');
+    const low = this.createCreatureMesh(data, false, 'low');
+    const hidden = new THREE.Object3D();
+
+    lod.addLevel(high, 0);
+    lod.addLevel(low, CREATURE_LOD_LOW);
+    lod.addLevel(hidden, CREATURE_LOD_HIDDEN);
+    lod.hysteresis = 0.12;
+    lod.autoUpdate = true;
+    lod.userData.aura = high.userData.aura;
+    lod.userData.data = data;
+    lod.userData.lodHigh = high;
+    lod.userData.lodLow = low;
+    lod.userData.lodHidden = hidden;
+    return lod;
+  }
+
+  createCreatureMesh(data, player, detail = 'high') {
     const group = new THREE.Group();
     const color = new THREE.Color(data.color || 0x8ee7ff);
     const accent = new THREE.Color(data.accent || 0xffffff);
-    const body = new THREE.Mesh(new THREE.SphereGeometry(player ? 1.15 : 1.0, 20, 14), new THREE.MeshStandardMaterial({ color, roughness: 0.65 }));
+    const high = detail === 'high';
+    const bodySegments = player ? 20 : high ? 16 : 8;
+    const bodyRings = player ? 14 : high ? 10 : 6;
+    const bellySegments = player ? 16 : high ? 12 : 6;
+    const bellyRings = player ? 12 : high ? 8 : 4;
+    const eyeSegments = player ? 10 : high ? 8 : 5;
+    const eyeRings = player ? 8 : high ? 6 : 4;
+    const auraSegments = player ? 16 : high ? 12 : 7;
+    const auraRings = player ? 12 : high ? 8 : 5;
+
+    const body = new THREE.Mesh(
+      new THREE.SphereGeometry(player ? 1.15 : 1.0, bodySegments, bodyRings),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.65 })
+    );
     body.scale.y = 1.12;
     body.position.y = 1.15;
-    const belly = new THREE.Mesh(new THREE.SphereGeometry(player ? 0.72 : 0.62, 16, 12), new THREE.MeshStandardMaterial({ color: accent, roughness: 0.7 }));
+
+    const belly = new THREE.Mesh(
+      new THREE.SphereGeometry(player ? 0.72 : 0.62, bellySegments, bellyRings),
+      new THREE.MeshStandardMaterial({ color: accent, roughness: 0.7 })
+    );
     belly.scale.set(1, 0.9, 0.55);
     belly.position.set(0, 1.05, 0.82);
+
     const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.3 });
     [-0.34, 0.34].forEach(x => {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), eyeMat);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.13, eyeSegments, eyeRings), eyeMat);
       eye.position.set(x, 1.5, 0.92);
       group.add(eye);
     });
+
     const earGeo = new THREE.ConeGeometry(0.35, 0.8, 6);
+    const earMat = new THREE.MeshStandardMaterial({ color: accent });
     [-0.62, 0.62].forEach(x => {
-      const ear = new THREE.Mesh(earGeo, new THREE.MeshStandardMaterial({ color: accent }));
+      const ear = new THREE.Mesh(earGeo, earMat);
       ear.position.set(x, 2.0, 0);
       ear.rotation.z = x > 0 ? -0.35 : 0.35;
       group.add(ear);
     });
-    const aura = new THREE.Mesh(new THREE.SphereGeometry(player ? 1.65 : 1.35, 16, 12), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.11, wireframe: true }));
+
+    const aura = new THREE.Mesh(
+      new THREE.SphereGeometry(player ? 1.65 : 1.35, auraSegments, auraRings),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.11, wireframe: true })
+    );
     aura.position.y = 1.15;
+
     group.add(body, belly, aura);
     group.userData.aura = aura;
     group.userData.data = data;
-    group.traverse(o => { if (o.isMesh) o.castShadow = true; });
     return group;
   }
 
@@ -207,8 +246,7 @@ export class AuraRealms3D {
       </div>`;
     this.container.appendChild(root);
     const $ = id => root.querySelector(id);
-    $(' #strike');
-    return { root, stats: $('#stats'), message: $('#message'), joystick: $('#joystick'), stick: $('#stick'), battle: $('#battle'), battleTitle: $('#battleTitle'), battleHp: $('#battleHp'), strike: $('#strike'), burst: $('#burst'), retreat: $('#retreat') };
+    return { root, stats: $('#stats'), message: $('#message'), hint: $('#hint'), joystick: $('#joystick'), stick: $('#stick'), battle: $('#battle'), battleTitle: $('#battleTitle'), battleHp: $('#battleHp'), strike: $('#strike'), burst: $('#burst'), retreat: $('#retreat') };
   }
 
   bindInput() {
@@ -253,7 +291,16 @@ export class AuraRealms3D {
   }
 
   updateWild(time) {
+    const visibleWild = [];
+    const skipDistanceSq = WILD_UPDATE_SKIP_DISTANCE * WILD_UPDATE_SKIP_DISTANCE;
+
     this.wild.forEach((c, i) => {
+      const distanceSq = this.camera.position.distanceToSquared(c.position);
+      if (distanceSq > skipDistanceSq) {
+        visibleWild.push(false);
+        return;
+      }
+
       const a = time * c.userData.speed + c.userData.phase;
       const targetX = c.userData.home.x + Math.cos(a) * 2.5;
       const targetZ = c.userData.home.z + Math.sin(a * 0.8) * 2.5;
@@ -262,7 +309,10 @@ export class AuraRealms3D {
       c.position.y = Math.sin(time * 3 + i) * 0.06;
       c.userData.aura.rotation.y += 0.01;
       c.rotation.y += Math.sin(time + i) * 0.002;
+      visibleWild.push(true);
     });
+
+    this.performanceSnapshot = { ...(this.performanceSnapshot || {}), visibleWild: visibleWild.filter(Boolean).length };
   }
 
   updateCamera(dt) {
