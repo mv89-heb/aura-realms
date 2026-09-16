@@ -1,5 +1,7 @@
 import { AuraRealms3D } from './three/AuraRealms3D.js';
 import { CreatureRuntime } from './three/CreatureRuntime.js';
+import { CreatureBattleAnimator } from './three/CreatureBattleAnimator.js';
+import { CreatureBattleIntegration } from './three/CreatureBattleIntegration.js';
 import { attachCreatureRuntime } from './three/CreatureRuntimeLoop.js';
 import { configureMobileRenderer, batchEnvironment, addBlobShadow } from './three/MobilePerformance.js';
 import { MobilePerformanceController, warmupRenderer } from './three/MobilePerformanceController.js';
@@ -22,6 +24,13 @@ game.performanceStats = batched;
 const creatureRuntime = attachCreatureRuntime(game, new CreatureRuntime());
 window.auraCreatureRuntime = creatureRuntime;
 
+// Keep battle rules untouched while mapping battle events to optional creature clips.
+const creatureBattleAnimator = new CreatureBattleAnimator(creatureRuntime);
+const creatureBattleIntegration = new CreatureBattleIntegration(game, creatureBattleAnimator).attach();
+game.creatureBattleAnimator = creatureBattleAnimator;
+game.creatureBattleIntegration = creatureBattleIntegration;
+window.auraCreatureBattleAnimator = creatureBattleAnimator;
+
 const performanceController = new MobilePerformanceController(game);
 performanceController.start();
 
@@ -35,6 +44,8 @@ window.addEventListener('resize', () => {
 });
 
 window.addEventListener('pagehide', () => {
+  creatureBattleIntegration.dispose();
+  creatureBattleAnimator.dispose();
   performanceController.dispose();
   creatureRuntime.dispose();
 }, { once: true });
