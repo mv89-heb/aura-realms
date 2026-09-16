@@ -29,6 +29,12 @@ export function configureMobileRenderer(renderer) {
   return renderer;
 }
 
+function disposeMeshResources(mesh) {
+  mesh.geometry?.dispose();
+  if (Array.isArray(mesh.material)) mesh.material.forEach(material => material.dispose());
+  else mesh.material?.dispose();
+}
+
 function isTreeGroup(object) {
   if (!object?.isGroup || object.children.length !== 2) return false;
   const [a, b] = object.children;
@@ -79,7 +85,12 @@ export function batchEnvironment(world) {
     trunks.computeBoundingSphere();
     crowns.computeBoundingSphere();
     world.add(trunks, crowns);
-    trees.forEach(tree => world.remove(tree));
+
+    trees.slice(1).forEach(tree => {
+      tree.children.forEach(disposeMeshResources);
+      world.remove(tree);
+    });
+    world.remove(trees[0]);
   }
 
   if (rocks.length) {
@@ -96,7 +107,12 @@ export function batchEnvironment(world) {
     instanced.instanceMatrix.needsUpdate = true;
     instanced.computeBoundingSphere();
     world.add(instanced);
-    rocks.forEach(rock => world.remove(rock));
+
+    rocks.slice(1).forEach(rock => {
+      disposeMeshResources(rock);
+      world.remove(rock);
+    });
+    world.remove(rocks[0]);
   }
 
   return { trees: trees.length, rocks: rocks.length };
