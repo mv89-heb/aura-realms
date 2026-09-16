@@ -2,6 +2,7 @@ import { AuraRealms3D } from './three/AuraRealms3D.js';
 import { CreatureRuntime } from './three/CreatureRuntime.js';
 import { CreatureBattleAnimator } from './three/CreatureBattleAnimator.js';
 import { CreatureBattleIntegration } from './three/CreatureBattleIntegration.js';
+import { ProceduralCreatureAnimator } from './three/ProceduralCreatureAnimator.js';
 import { attachCreatureRuntime } from './three/CreatureRuntimeLoop.js';
 import { configureMobileRenderer, batchEnvironment, addBlobShadow } from './three/MobilePerformance.js';
 import { MobilePerformanceController, warmupRenderer } from './three/MobilePerformanceController.js';
@@ -20,15 +21,22 @@ for (const creature of game.wild) addBlobShadow(creature, 0.78);
 
 game.performanceStats = batched;
 
-// Animated GLB creatures share the game's existing RAF loop.
+// Animated GLB creatures share the game's existing renderer/RAF pipeline.
 const creatureRuntime = attachCreatureRuntime(game, new CreatureRuntime());
 window.auraCreatureRuntime = creatureRuntime;
 
-// Keep battle rules untouched while mapping battle events to optional creature clips.
-const creatureBattleAnimator = new CreatureBattleAnimator(creatureRuntime);
+// Built-in procedural creatures get transform-only battle animation until GLBs are supplied.
+const proceduralCreatureAnimator = new ProceduralCreatureAnimator(game);
+proceduralCreatureAnimator.attachRenderer(game.renderer);
+
+// Keep battle rules untouched while mapping battle events to GLB clips or procedural fallback.
+const creatureBattleAnimator = new CreatureBattleAnimator(creatureRuntime, {
+  fallback: proceduralCreatureAnimator
+});
 const creatureBattleIntegration = new CreatureBattleIntegration(game, creatureBattleAnimator).attach();
 game.creatureBattleAnimator = creatureBattleAnimator;
 game.creatureBattleIntegration = creatureBattleIntegration;
+game.proceduralCreatureAnimator = proceduralCreatureAnimator;
 window.auraCreatureBattleAnimator = creatureBattleAnimator;
 
 const performanceController = new MobilePerformanceController(game);
@@ -46,6 +54,7 @@ window.addEventListener('resize', () => {
 window.addEventListener('pagehide', () => {
   creatureBattleIntegration.dispose();
   creatureBattleAnimator.dispose();
+  proceduralCreatureAnimator.dispose();
   performanceController.dispose();
   creatureRuntime.dispose();
 }, { once: true });
