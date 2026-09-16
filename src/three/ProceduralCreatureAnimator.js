@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 const clamp01 = value => Math.max(0, Math.min(1, value));
 
 /**
@@ -13,6 +11,7 @@ export class ProceduralCreatureAnimator {
     this.renderer = null;
     this.originalRender = null;
     this.attached = false;
+    this.lastTime = 0;
   }
 
   resolve(id) {
@@ -30,7 +29,6 @@ export class ProceduralCreatureAnimator {
   play(id, state) {
     const root = this.resolve(id);
     if (!root) return false;
-
     const previous = this.states.get(id);
     const baseScale = previous?.baseScale?.clone() || root.scale.clone();
     this.states.set(id, {
@@ -39,6 +37,7 @@ export class ProceduralCreatureAnimator {
       elapsed: 0,
       baseScale,
       baseRotationY: root.rotation.y,
+      baseRotationZ: root.rotation.z,
       basePosition: root.position.clone()
     });
     return true;
@@ -49,7 +48,8 @@ export class ProceduralCreatureAnimator {
     if (!state) return false;
     state.root.scale.copy(state.baseScale);
     state.root.rotation.y = state.baseRotationY;
-    state.root.position.y = state.basePosition.y;
+    state.root.rotation.z = state.baseRotationZ;
+    state.root.position.copy(state.basePosition);
     this.states.delete(id);
     return true;
   }
@@ -61,30 +61,26 @@ export class ProceduralCreatureAnimator {
         this.states.delete(id);
         continue;
       }
-
       state.elapsed += delta;
       const t = state.elapsed;
 
       if (state.state === 'attack') {
         const phase = clamp01(t / 0.26);
-        const lunge = Math.sin(phase * Math.PI) * 0.24;
-        root.position.z = state.basePosition.z - lunge;
-        const pulse = 1 + Math.sin(phase * Math.PI) * 0.13;
-        root.scale.copy(state.baseScale).multiplyScalar(pulse);
+        root.position.z = state.basePosition.z - Math.sin(phase * Math.PI) * 0.24;
+        root.scale.copy(state.baseScale).multiplyScalar(1 + Math.sin(phase * Math.PI) * 0.13);
       } else if (state.state === 'hit') {
         const decay = Math.exp(-t * 8.5);
-        root.rotation.z = Math.sin(t * 48) * 0.11 * decay;
+        root.rotation.z = state.baseRotationZ + Math.sin(t * 48) * 0.11 * decay;
         root.position.x = state.basePosition.x + Math.sin(t * 55) * 0.075 * decay;
       } else if (state.state === 'defeat') {
         const phase = clamp01(t / 0.9);
-        const scale = Math.max(0.06, 1 - phase * 0.94);
-        root.scale.copy(state.baseScale).multiplyScalar(scale);
-        root.rotation.z = phase * 0.75;
+        root.scale.copy(state.baseScale).multiplyScalar(Math.max(0.06, 1 - phase * 0.94));
+        root.rotation.z = state.baseRotationZ + phase * 0.75;
         root.position.y = state.basePosition.y + Math.sin(phase * Math.PI) * 0.18;
       } else if (state.state === 'victory') {
         const bounce = Math.abs(Math.sin(t * 7.5)) * Math.exp(-t * 0.9);
         root.position.y = state.basePosition.y + bounce * 0.42;
-        root.rotation.z = Math.sin(t * 5.5) * 0.08 * Math.exp(-t * 0.7);
+        root.rotation.z = state.baseRotationZ + Math.sin(t * 5.5) * 0.08 * Math.exp(-t * 0.7);
       }
     }
   }
@@ -93,8 +89,11 @@ export class ProceduralCreatureAnimator {
     if (this.attached || !renderer?.render) return;
     this.renderer = renderer;
     this.originalRender = renderer.render.bind(renderer);
+    this.lastTime = performance.now();
     renderer.render = (scene, camera) => {
-      const delta = Math.min(this.game?.clock?.getDelta?.() || 0, 0.05);
+      const now = performance.now();
+      const delta = Math.min(Math.max((now - this.lastTime) / 1000, 0), 0.05);
+      this.lastTime = now;
       this.update(delta);
       return this.originalRender(scene, camera);
     };
@@ -105,15 +104,14 @@ export class ProceduralCreatureAnimator {
     for (const state of this.states.values()) {
       state.root.scale.copy(state.baseScale);
       state.root.rotation.y = state.baseRotationY;
-      state.root.rotation.z = 0;
+      state.root.rotation.z = state.baseRotationZ;
       state.root.position.copy(state.basePosition);
     }
     this.states.clear();
-    if (this.attached && this.renderer && this.originalRender) {
-      this.renderer.render = this.originalRender;
-    }
+    if (this.attached && this.renderer && this.originalRender) this.renderer.render = this.originalRender;
     this.renderer = null;
     this.originalRender = null;
     this.attached = false;
+    this.lastTime = 0;
   }
 }
