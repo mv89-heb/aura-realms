@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { configureMobileRenderer, MOBILE_PERFORMANCE, getRecommendedPixelRatio } from './MobilePerformance.js';
+import { MOBILE_PERFORMANCE, getRecommendedPixelRatio } from './MobilePerformance.js';
 
 const MIN_PIXEL_RATIO = 1.0;
 const MAX_PIXEL_RATIO = MOBILE_PERFORMANCE.maxPixelRatio;
@@ -14,6 +14,7 @@ export class MobilePerformanceController {
     this.fps = 60;
     this.pixelRatio = this.renderer.getPixelRatio();
     this.mode = 'balanced';
+    this.timer = null;
     this._wrapRender();
   }
 
@@ -27,6 +28,9 @@ export class MobilePerformanceController {
   }
 
   start() {
+    if (this.timer) return;
+    this.lastTime = performance.now();
+    this.frames = 0;
     this.timer = window.setInterval(() => this.sample(), SAMPLE_MS);
     this.sample();
   }
@@ -40,16 +44,16 @@ export class MobilePerformanceController {
 
     const calls = this.renderer.info.render.calls;
     const triangles = this.renderer.info.render.triangles;
-    const target = getRecommendedPixelRatio(this.renderer);
+    const recommended = getRecommendedPixelRatio(this.renderer);
 
     if (this.fps < 48) {
-      this.pixelRatio = Math.max(MIN_PIXEL_RATIO, Math.min(this.pixelRatio - 0.15, target));
+      this.pixelRatio = Math.max(MIN_PIXEL_RATIO, Math.min(this.pixelRatio - 0.15, recommended));
       this.mode = 'performance';
     } else if (this.fps < 56) {
-      this.pixelRatio = Math.max(MIN_PIXEL_RATIO, Math.min(this.pixelRatio - 0.05, target));
+      this.pixelRatio = Math.max(MIN_PIXEL_RATIO, Math.min(this.pixelRatio - 0.05, recommended));
       this.mode = 'balanced';
     } else if (this.fps > 59) {
-      this.pixelRatio = Math.min(MAX_PIXEL_RATIO, Math.max(this.pixelRatio + 0.05, target));
+      this.pixelRatio = Math.min(MAX_PIXEL_RATIO, Math.max(this.pixelRatio + 0.05, recommended));
       this.mode = 'quality';
     }
 
@@ -66,7 +70,10 @@ export class MobilePerformanceController {
   }
 
   dispose() {
-    if (this.timer) window.clearInterval(this.timer);
+    if (this.timer) {
+      window.clearInterval(this.timer);
+      this.timer = null;
+    }
   }
 }
 
@@ -74,7 +81,7 @@ export async function warmupRenderer(game) {
   try {
     if (typeof game.renderer.compileAsync === 'function') {
       await game.renderer.compileAsync(game.scene, game.camera);
-    } else {
+    } else if (typeof game.renderer.compile === 'function') {
       game.renderer.compile(game.scene, game.camera);
     }
   } catch (error) {
