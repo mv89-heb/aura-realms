@@ -97,8 +97,10 @@ export class CreatureBattleIntegration {
       const battleEnded = activeBattle.ending || activeBattle.enemy.currentHp <= 0;
 
       if (enemyDamage > 0) {
+        // The final hit must still be visible even though the original battle
+        // logic may already have marked the battle as ending.
         this.schedule(() => {
-          if (this.game.battle !== activeBattle || activeBattle.ending) return;
+          if (this.game.battle !== activeBattle) return;
           this.playAll(ids.enemy, 'hit');
           this.feedback?.hit({ burst });
           this.feedback?.damage(enemyDamage, { burst });
@@ -134,16 +136,23 @@ export class CreatureBattleIntegration {
           player: CreatureBattleIntegration.playerId(this.game),
           enemy: CreatureBattleIntegration.wildId(battle.wild)
         };
-        this.playAll(ids.enemy, 'defeat');
-        this.playAll(ids.player, 'victory');
+
         this.feedback?.setTurn('VICTORY', false);
         this.feedback?.syncBattleUI();
         this.feedback?.show('VICTORY!', 1100);
+
+        // Give the finishing hit time to land before the victory animation.
+        this.schedule(() => {
+          if (this.game.battle !== battle) return;
+          this.playAll(ids.enemy, 'defeat');
+          this.playAll(ids.player, 'victory');
+        }, 520);
+
         window.clearTimeout(this.victoryTimer);
         this.victoryTimer = this.schedule(() => {
           this.victoryTimer = 0;
           if (this.game.battle === battle) this.originalCloseBattle(true);
-        }, 900);
+        }, 1420);
         return;
       }
       this.clearPendingTimers();
