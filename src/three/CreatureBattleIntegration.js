@@ -37,6 +37,8 @@ export class CreatureBattleIntegration {
           player: CreatureBattleIntegration.playerId(this.game),
           enemy: CreatureBattleIntegration.wildId(wild)
         };
+        this.feedback?.syncBattleUI();
+        this.feedback?.setTurn('YOUR TURN', true);
       }
     };
 
@@ -52,9 +54,11 @@ export class CreatureBattleIntegration {
       };
       const enemyHpBefore = battle.enemy.currentHp;
       const playerHpBefore = battle.playerHp;
-      const critical = multiplier > 1.2;
+      const burst = multiplier > 1.2;
+      const attackState = burst ? 'burst' : 'attack';
 
-      this.playAll(ids.player, 'attack');
+      this.feedback?.setTurn(burst ? 'AURA BURST' : 'STRIKE', false);
+      this.playAll(ids.player, attackState);
       this.originalBattleTurn(multiplier);
 
       if (this.game.battle) {
@@ -62,14 +66,16 @@ export class CreatureBattleIntegration {
         const playerDamage = playerHpBefore - this.game.battle.playerHp;
         if (enemyDamage > 0) {
           this.playAll(ids.enemy, 'hit');
-          this.feedback?.hit({ critical });
-          this.feedback?.damage(enemyDamage, { critical });
+          this.feedback?.hit({ critical: burst, burst });
+          this.feedback?.damage(enemyDamage, { critical: burst });
         }
         if (playerDamage > 0) {
           this.playAll(ids.player, 'hit');
           this.feedback?.hit();
           this.feedback?.damage(playerDamage);
         }
+        this.feedback?.syncBattleUI();
+        this.feedback?.setTurn('YOUR TURN', true);
       } else {
         this.playAll(ids.player, 'hit');
         this.feedback?.show('Your creature needs rest.', 900);
@@ -88,6 +94,7 @@ export class CreatureBattleIntegration {
         };
         this.playAll(ids.enemy, 'defeat');
         this.playAll(ids.player, 'victory');
+        this.feedback?.setTurn('VICTORY', false);
         this.feedback?.show('VICTORY!', 1100);
         clearTimeout(this.victoryTimer);
         this.victoryTimer = window.setTimeout(() => {
@@ -96,6 +103,7 @@ export class CreatureBattleIntegration {
         }, 900);
         return;
       }
+      this.feedback?.setTurn('BATTLE ENDED', false);
       return this.originalCloseBattle(victory);
     };
 
