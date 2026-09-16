@@ -8,10 +8,6 @@ export class ProceduralCreatureAnimator {
   constructor(game) {
     this.game = game;
     this.states = new Map();
-    this.renderer = null;
-    this.originalRender = null;
-    this.attached = false;
-    this.lastTime = 0;
   }
 
   resolve(id) {
@@ -31,11 +27,17 @@ export class ProceduralCreatureAnimator {
     if (!root) return false;
     const previous = this.states.get(id);
     const baseScale = previous?.baseScale?.clone() || root.scale.clone();
+    const aura = root.userData?.aura || null;
+    const baseAuraScale = previous?.baseAuraScale?.clone() || aura?.scale?.clone() || null;
+    const baseAuraOpacity = previous?.baseAuraOpacity ?? aura?.material?.opacity ?? 0.11;
     this.states.set(id, {
       root,
+      aura,
       state,
       elapsed: 0,
       baseScale,
+      baseAuraScale,
+      baseAuraOpacity,
       baseRotationY: root.rotation.y,
       baseRotationZ: root.rotation.z,
       basePosition: root.position.clone()
@@ -46,12 +48,18 @@ export class ProceduralCreatureAnimator {
   stop(id) {
     const state = this.states.get(id);
     if (!state) return false;
+    this.resetState(state);
+    this.states.delete(id);
+    return true;
+  }
+
+  resetState(state) {
     state.root.scale.copy(state.baseScale);
     state.root.rotation.y = state.baseRotationY;
     state.root.rotation.z = state.baseRotationZ;
     state.root.position.copy(state.basePosition);
-    this.states.delete(id);
-    return true;
+    if (state.aura && state.baseAuraScale) state.aura.scale.copy(state.baseAuraScale);
+    if (state.aura?.material) state.aura.material.opacity = state.baseAuraOpacity;
   }
 
   update(delta) {
@@ -68,6 +76,15 @@ export class ProceduralCreatureAnimator {
         const phase = clamp01(t / 0.26);
         root.position.z = state.basePosition.z - Math.sin(phase * Math.PI) * 0.24;
         root.scale.copy(state.baseScale).multiplyScalar(1 + Math.sin(phase * Math.PI) * 0.13);
+      } else if (state.state === 'burst') {
+        const phase = clamp01(t / 0.34);
+        const pulse = Math.sin(phase * Math.PI);
+        root.position.z = state.basePosition.z - pulse * 0.34;
+        root.scale.copy(state.baseScale).multiplyScalar(1 + pulse * 0.2);
+        if (state.aura) {
+          state.aura.scale.copy(state.baseAuraScale).multiplyScalar(1 + pulse * 0.42);
+          if (state.aura.material) state.aura.material.opacity = state.baseAuraOpacity + pulse * 0.2;
+        }
       } else if (state.state === 'hit') {
         const decay = Math.exp(-t * 8.5);
         root.rotation.z = state.baseRotationZ + Math.sin(t * 48) * 0.11 * decay;
@@ -85,33 +102,8 @@ export class ProceduralCreatureAnimator {
     }
   }
 
-  attachRenderer(renderer) {
-    if (this.attached || !renderer?.render) return;
-    this.renderer = renderer;
-    this.originalRender = renderer.render.bind(renderer);
-    this.lastTime = performance.now();
-    renderer.render = (scene, camera) => {
-      const now = performance.now();
-      const delta = Math.min(Math.max((now - this.lastTime) / 1000, 0), 0.05);
-      this.lastTime = now;
-      this.update(delta);
-      return this.originalRender(scene, camera);
-    };
-    this.attached = true;
-  }
-
   dispose() {
-    for (const state of this.states.values()) {
-      state.root.scale.copy(state.baseScale);
-      state.root.rotation.y = state.baseRotationY;
-      state.root.rotation.z = state.baseRotationZ;
-      state.root.position.copy(state.basePosition);
-    }
+    for (const state of this.states.values()) this.resetState(state);
     this.states.clear();
-    if (this.attached && this.renderer && this.originalRender) this.renderer.render = this.originalRender;
-    this.renderer = null;
-    this.originalRender = null;
-    this.attached = false;
-    this.lastTime = 0;
   }
 }
