@@ -2,6 +2,7 @@ const DEFAULT_CLIPS = Object.freeze({
   idle: ['Idle', 'idle', 'IDLE'],
   walk: ['Walk', 'walk', 'WALK'],
   attack: ['Attack', 'attack', 'ATTACK'],
+  burst: ['Aura Burst', 'AuraBurst', 'Burst', 'burst', 'Attack', 'attack', 'ATTACK'],
   hit: ['Hit', 'hit', 'HIT'],
   defeat: ['Defeat', 'defeat', 'DEATH', 'Death'],
   victory: ['Victory', 'victory', 'WIN', 'Win']
