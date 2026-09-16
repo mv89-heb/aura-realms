@@ -1,5 +1,5 @@
 /**
- * Connects CreatureRuntime and optional procedural animation to AuraRealms3D's
+ * Connects CreatureRuntime and visual animation systems to AuraRealms3D's
  * existing animation loop. No second RAF and no renderer monkey-patching.
  */
 export function attachCreatureRuntime(game, runtime) {
@@ -14,6 +14,7 @@ export function attachCreatureRuntime(game, runtime) {
     previousElapsed = elapsed;
     runtime.update(dt);
     game.proceduralCreatureAnimator?.update(dt);
+    game.combatFeedback?.update(dt);
     originalAnimate();
   };
 
