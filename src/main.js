@@ -3,6 +3,7 @@ import { CreatureRuntime } from './three/CreatureRuntime.js';
 import { CreatureBattleAnimator } from './three/CreatureBattleAnimator.js';
 import { CreatureBattleIntegration } from './three/CreatureBattleIntegration.js';
 import { ProceduralCreatureAnimator } from './three/ProceduralCreatureAnimator.js';
+import { CombatFeedback } from './three/CombatFeedback.js';
 import { attachCreatureRuntime } from './three/CreatureRuntimeLoop.js';
 import { configureMobileRenderer, batchEnvironment, addBlobShadow } from './three/MobilePerformance.js';
 import { MobilePerformanceController, warmupRenderer } from './three/MobilePerformanceController.js';
@@ -21,22 +22,24 @@ for (const creature of game.wild) addBlobShadow(creature, 0.78);
 
 game.performanceStats = batched;
 
-// Animated GLB creatures share the game's existing renderer/RAF pipeline.
+// Optional GLB creatures and the procedural fallback share the same game loop.
 const creatureRuntime = attachCreatureRuntime(game, new CreatureRuntime());
+const proceduralCreatureAnimator = new ProceduralCreatureAnimator(game);
+game.proceduralCreatureAnimator = proceduralCreatureAnimator;
 window.auraCreatureRuntime = creatureRuntime;
 
-// Built-in procedural creatures get transform-only battle animation until GLBs are supplied.
-const proceduralCreatureAnimator = new ProceduralCreatureAnimator(game);
-proceduralCreatureAnimator.attachRenderer(game.renderer);
-
-// Keep battle rules untouched while mapping battle events to GLB clips or procedural fallback.
-const creatureBattleAnimator = new CreatureBattleAnimator(creatureRuntime, {
-  fallback: proceduralCreatureAnimator
-});
-const creatureBattleIntegration = new CreatureBattleIntegration(game, creatureBattleAnimator).attach();
+// Keep battle rules untouched while mapping battle events to visual feedback.
+const creatureBattleAnimator = new CreatureBattleAnimator(creatureRuntime);
+const combatFeedback = new CombatFeedback(game);
+const creatureBattleIntegration = new CreatureBattleIntegration(
+  game,
+  creatureBattleAnimator,
+  proceduralCreatureAnimator,
+  combatFeedback
+).attach();
 game.creatureBattleAnimator = creatureBattleAnimator;
 game.creatureBattleIntegration = creatureBattleIntegration;
-game.proceduralCreatureAnimator = proceduralCreatureAnimator;
+game.combatFeedback = combatFeedback;
 window.auraCreatureBattleAnimator = creatureBattleAnimator;
 
 const performanceController = new MobilePerformanceController(game);
@@ -53,8 +56,8 @@ window.addEventListener('resize', () => {
 
 window.addEventListener('pagehide', () => {
   creatureBattleIntegration.dispose();
-  creatureBattleAnimator.dispose();
   proceduralCreatureAnimator.dispose();
+  creatureBattleAnimator.dispose();
   performanceController.dispose();
   creatureRuntime.dispose();
 }, { once: true });
