@@ -52,18 +52,23 @@ export class CreatureBattleIntegration {
       };
       const enemyHpBefore = battle.enemy.currentHp;
       const playerHpBefore = battle.playerHp;
+      const critical = multiplier > 1.2;
 
       this.playAll(ids.player, 'attack');
       this.originalBattleTurn(multiplier);
 
       if (this.game.battle) {
-        if (this.game.battle.enemy.currentHp < enemyHpBefore) {
+        const enemyDamage = enemyHpBefore - this.game.battle.enemy.currentHp;
+        const playerDamage = playerHpBefore - this.game.battle.playerHp;
+        if (enemyDamage > 0) {
           this.playAll(ids.enemy, 'hit');
-          this.feedback?.damage(enemyHpBefore - this.game.battle.enemy.currentHp);
+          this.feedback?.hit({ critical });
+          this.feedback?.damage(enemyDamage, { critical });
         }
-        if (this.game.battle.playerHp < playerHpBefore) {
+        if (playerDamage > 0) {
           this.playAll(ids.player, 'hit');
-          this.feedback?.damage(playerHpBefore - this.game.battle.playerHp);
+          this.feedback?.hit();
+          this.feedback?.damage(playerDamage);
         }
       } else {
         this.playAll(ids.player, 'hit');
