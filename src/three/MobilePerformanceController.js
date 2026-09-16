@@ -4,6 +4,8 @@ import { MOBILE_PERFORMANCE, getRecommendedPixelRatio } from './MobilePerformanc
 const MIN_PIXEL_RATIO = 1.0;
 const MAX_PIXEL_RATIO = MOBILE_PERFORMANCE.maxPixelRatio;
 const SAMPLE_MS = 1500;
+const CREATURE_HIDE_DISTANCE = 58;
+const CREATURE_AURA_DISTANCE = 26;
 
 export class MobilePerformanceController {
   constructor(game) {
@@ -35,6 +37,27 @@ export class MobilePerformanceController {
     this.sample();
   }
 
+  updateDistanceCulling() {
+    const player = this.game.player;
+    if (!player || !Array.isArray(this.game.wild)) return 0;
+
+    let visible = 0;
+    const hideDistanceSq = CREATURE_HIDE_DISTANCE * CREATURE_HIDE_DISTANCE;
+    const auraDistanceSq = CREATURE_AURA_DISTANCE * CREATURE_AURA_DISTANCE;
+
+    for (const creature of this.game.wild) {
+      const distanceSq = player.position.distanceToSquared(creature.position);
+      const isVisible = distanceSq <= hideDistanceSq;
+      creature.visible = isVisible;
+
+      const aura = creature.userData?.aura;
+      if (aura) aura.visible = isVisible && distanceSq <= auraDistanceSq;
+      if (isVisible) visible += 1;
+    }
+
+    return visible;
+  }
+
   sample() {
     const now = performance.now();
     const elapsed = Math.max(1, now - this.lastTime);
@@ -45,6 +68,7 @@ export class MobilePerformanceController {
     const calls = this.renderer.info.render.calls;
     const triangles = this.renderer.info.render.triangles;
     const recommended = getRecommendedPixelRatio(this.renderer);
+    const visibleWild = this.updateDistanceCulling();
 
     if (this.fps < 48) {
       this.pixelRatio = Math.max(MIN_PIXEL_RATIO, Math.min(this.pixelRatio - 0.15, recommended));
@@ -65,7 +89,8 @@ export class MobilePerformanceController {
       drawCalls: calls,
       triangles,
       pixelRatio: Number(this.pixelRatio.toFixed(2)),
-      mode: this.mode
+      mode: this.mode,
+      visibleWild
     };
   }
 
