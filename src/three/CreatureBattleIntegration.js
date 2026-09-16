@@ -1,7 +1,9 @@
 export class CreatureBattleIntegration {
-  constructor(game, animator) {
+  constructor(game, animator, proceduralAnimator = null, feedback = null) {
     this.game = game;
     this.animator = animator;
+    this.proceduralAnimator = proceduralAnimator;
+    this.feedback = feedback;
     this.originalBattleTurn = null;
     this.originalOpenBattle = null;
     this.originalCloseBattle = null;
@@ -16,6 +18,11 @@ export class CreatureBattleIntegration {
   static wildId(wild) {
     const id = wild?.userData?.data?.id || wild?.userData?.data?.name || 'wild';
     return `wild:${id}`;
+  }
+
+  playAll(id, state) {
+    this.animator?.play(id, state, { reset: true, fade: 0.06 });
+    this.proceduralAnimator?.play(id, state);
   }
 
   attach() {
@@ -36,6 +43,7 @@ export class CreatureBattleIntegration {
     this.game.battleTurn = multiplier => {
       const battle = this.game.battle;
       if (!battle) return;
+      if (this.feedback && !this.feedback.startTurn()) return;
 
       const ids = battle.animationIds || {
         player: CreatureBattleIntegration.playerId(this.game),
@@ -44,20 +52,21 @@ export class CreatureBattleIntegration {
       const enemyHpBefore = battle.enemy.currentHp;
       const playerHpBefore = battle.playerHp;
 
-      void this.animator.attack(ids.player);
+      this.playAll(ids.player, 'attack');
       this.originalBattleTurn(multiplier);
 
       if (this.game.battle) {
         if (this.game.battle.enemy.currentHp < enemyHpBefore) {
-          void this.animator.receiveHit(ids.enemy);
+          this.playAll(ids.enemy, 'hit');
+          this.feedback?.damage(enemyHpBefore - this.game.battle.enemy.currentHp);
         }
         if (this.game.battle.playerHp < playerHpBefore) {
-          void this.animator.receiveHit(ids.player);
+          this.playAll(ids.player, 'hit');
+          this.feedback?.damage(playerHpBefore - this.game.battle.playerHp);
         }
       } else {
-        // A battle that closes from battleTurn without a victory is the
-        // player's defeat path; the victory path is handled by closeBattle.
-        void this.animator.receiveHit(ids.player);
+        this.playAll(ids.player, 'hit');
+        this.feedback?.show('Your creature needs rest.', 900);
       }
     };
 
@@ -69,8 +78,9 @@ export class CreatureBattleIntegration {
           player: CreatureBattleIntegration.playerId(this.game),
           enemy: CreatureBattleIntegration.wildId(battle.wild)
         };
-        void this.animator.defeat(ids.enemy);
-        void this.animator.victory(ids.player);
+        this.playAll(ids.enemy, 'defeat');
+        this.playAll(ids.player, 'victory');
+        this.feedback?.show('VICTORY!', 1100);
       }
       return this.originalCloseBattle(victory);
     };
@@ -87,6 +97,7 @@ export class CreatureBattleIntegration {
     this.originalOpenBattle = null;
     this.originalBattleTurn = null;
     this.originalCloseBattle = null;
+    this.feedback?.dispose();
     this.attached = false;
   }
 }
