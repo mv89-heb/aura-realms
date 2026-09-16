@@ -52,6 +52,11 @@ function makeInstancedMesh(source, count) {
   return mesh;
 }
 
+/**
+ * Converts repeated static environment meshes into InstancedMesh batches.
+ * Important: source geometry/material are intentionally retained because the
+ * resulting InstancedMesh references the same GPU resources.
+ */
 export function batchEnvironment(world) {
   const trees = [];
   const rocks = [];
@@ -86,11 +91,9 @@ export function batchEnvironment(world) {
     crowns.computeBoundingSphere();
     world.add(trunks, crowns);
 
-    trees.slice(1).forEach(tree => {
-      tree.children.forEach(disposeMeshResources);
-      world.remove(tree);
-    });
-    world.remove(trees[0]);
+    // Do not dispose the old tree resources: the InstancedMesh batches above
+    // share the source geometry/material and still need them on the GPU.
+    trees.forEach(tree => world.remove(tree));
   }
 
   if (rocks.length) {
@@ -108,11 +111,8 @@ export function batchEnvironment(world) {
     instanced.computeBoundingSphere();
     world.add(instanced);
 
-    rocks.slice(1).forEach(rock => {
-      disposeMeshResources(rock);
-      world.remove(rock);
-    });
-    world.remove(rocks[0]);
+    // The InstancedMesh owns the shared geometry/material references now.
+    rocks.forEach(rock => world.remove(rock));
   }
 
   return { trees: trees.length, rocks: rocks.length };
