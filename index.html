@@ -4,12 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#07111f" />
-  <title>Aura Realms</title>
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Aura Realms — 3D</title>
   <style>
-    html, body { margin:0; width:100%; height:100%; overflow:hidden; background:#07111f; }
-    body { touch-action:none; font-family:Inter,system-ui,sans-serif; }
-    #game { width:100%; height:100%; }
-    canvas { display:block; margin:auto; }
+    :root { color-scheme: dark; }
+    html, body, #game { margin:0; width:100%; height:100%; overflow:hidden; }
+    body { background:#07111f; font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; touch-action:none; }
+    canvas { display:block; width:100%; height:100%; }
+    button { font:inherit; }
   </style>
 </head>
 <body>
