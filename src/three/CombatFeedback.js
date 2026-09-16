@@ -53,7 +53,7 @@ export class CombatFeedback {
     return { root, name, fill, value };
   }
 
-  startTurn(duration = 620) {
+  startTurn(duration = 760) {
     const now = performance.now();
     if (now < this.busyUntil) return false;
     this.busyUntil = now + duration;
@@ -102,14 +102,14 @@ export class CombatFeedback {
     this.active = {
       elapsed: 0,
       duration: critical ? 240 : 170,
-      strength: critical ? 0.18 : 0.085,
-      frequency: critical ? 0.16 : 0.2
+      strength: critical ? 0.18 : burst ? 0.13 : 0.085,
+      frequency: critical ? 0.16 : burst ? 0.18 : 0.2
     };
     this.show(burst ? 'AURA BURST!' : critical ? 'CRITICAL HIT!' : 'HIT!', 500);
   }
 
-  damage(value, { critical = false } = {}) {
-    this.show(critical ? `CRITICAL −${value}` : `−${value}`, 650);
+  damage(value, { critical = false, burst = false } = {}) {
+    this.show(burst ? `AURA −${value}` : critical ? `CRITICAL −${value}` : `−${value}`, 650);
   }
 
   update(delta) {
