@@ -41,21 +41,24 @@ export class CreatureBattleIntegration {
         player: CreatureBattleIntegration.playerId(this.game),
         enemy: CreatureBattleIntegration.wildId(battle.wild)
       };
-      const damage = Math.max(0, Math.round(this.game.playerData.attack * multiplier));
-      const enemyWillDefeat = battle.enemy.currentHp <= damage;
+      const enemyHpBefore = battle.enemy.currentHp;
+      const winsBefore = this.game.save.wins;
 
       void this.animator.attack(ids.player);
       this.originalBattleTurn(multiplier);
 
-      if (enemyWillDefeat) {
+      const victory = this.game.save.wins > winsBefore;
+      if (victory) {
         void this.animator.defeat(ids.enemy);
         void this.animator.victory(ids.player);
         return;
       }
 
       if (this.game.battle) {
-        void this.animator.receiveHit(ids.enemy);
-        if (this.game.battle.playerHp <= 0) {
+        if (this.game.battle.enemy.currentHp < enemyHpBefore) {
+          void this.animator.receiveHit(ids.enemy);
+        }
+        if (this.game.battle.playerHp < this.game.playerData.hp) {
           void this.animator.receiveHit(ids.player);
         }
       } else {
