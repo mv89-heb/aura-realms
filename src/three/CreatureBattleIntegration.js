@@ -42,26 +42,22 @@ export class CreatureBattleIntegration {
         enemy: CreatureBattleIntegration.wildId(battle.wild)
       };
       const enemyHpBefore = battle.enemy.currentHp;
-      const winsBefore = this.game.save.wins;
+      const playerHpBefore = battle.playerHp;
 
       void this.animator.attack(ids.player);
       this.originalBattleTurn(multiplier);
-
-      const victory = this.game.save.wins > winsBefore;
-      if (victory) {
-        void this.animator.defeat(ids.enemy);
-        void this.animator.victory(ids.player);
-        return;
-      }
 
       if (this.game.battle) {
         if (this.game.battle.enemy.currentHp < enemyHpBefore) {
           void this.animator.receiveHit(ids.enemy);
         }
-        if (this.game.battle.playerHp < this.game.playerData.hp) {
+        if (this.game.battle.playerHp < playerHpBefore) {
           void this.animator.receiveHit(ids.player);
         }
-      } else {
+      } else if (this.game.save.wins === (this.game.save.wins || 0)) {
+        // The original battle flow already handled the outcome. A closed battle
+        // without a win is the defeat/retreat path; victory animation is handled
+        // by the closeBattle wrapper below.
         void this.animator.receiveHit(ids.player);
       }
     };
