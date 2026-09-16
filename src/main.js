@@ -1,5 +1,6 @@
 import { AuraRealms3D } from './three/AuraRealms3D.js';
 import { configureMobileRenderer, batchEnvironment, addBlobShadow } from './three/MobilePerformance.js';
+import { MobilePerformanceController, warmupRenderer } from './three/MobilePerformanceController.js';
 
 const game = new AuraRealms3D(document.getElementById('game'));
 
@@ -14,9 +15,16 @@ if (game.player) addBlobShadow(game.player, 0.95);
 for (const creature of game.wild) addBlobShadow(creature, 0.78);
 
 game.performanceStats = batched;
+const performanceController = new MobilePerformanceController(game);
+performanceController.start();
+
 game.start();
+void warmupRenderer(game);
 
 window.addEventListener('resize', () => {
   configureMobileRenderer(game.renderer);
   game.resize();
+  performanceController.sample();
 });
+
+window.addEventListener('pagehide', () => performanceController.dispose(), { once: true });
