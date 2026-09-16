@@ -64,7 +64,7 @@ export class CreatureBattleIntegration {
     this.game.battleTurn = multiplier => {
       const battle = this.game.battle;
       if (!battle || battle.ending) return;
-      if (this.feedback && !this.feedback.startTurn(720)) return;
+      if (this.feedback && !this.feedback.startTurn(760)) return;
 
       this.clearPendingTimers();
 
@@ -80,7 +80,7 @@ export class CreatureBattleIntegration {
       this.feedback?.setTurn(burst ? 'AURA BURST' : 'STRIKE', false);
       this.playAll(ids.player, attackState);
 
-      // Keep damage and turn rules exactly as implemented by BattleSystem.
+      // Keep damage and turn rules exactly as implemented by the original battle logic.
       this.originalBattleTurn(multiplier);
 
       const activeBattle = this.game.battle;
@@ -98,26 +98,29 @@ export class CreatureBattleIntegration {
 
       if (enemyDamage > 0) {
         this.schedule(() => {
+          if (this.game.battle !== activeBattle || activeBattle.ending) return;
           this.playAll(ids.enemy, 'hit');
-          this.feedback?.hit({ critical: false, burst });
-          this.feedback?.damage(enemyDamage, { critical: false, burst });
+          this.feedback?.hit({ burst });
+          this.feedback?.damage(enemyDamage, { burst });
         }, 220);
       }
 
       if (playerDamage > 0 && !battleEnded) {
         this.schedule(() => {
-          if (this.game.battle !== activeBattle) return;
+          if (this.game.battle !== activeBattle || activeBattle.ending) return;
           this.playAll(ids.player, 'hit');
-          this.feedback?.hit({ critical: false });
+          this.feedback?.hit();
           this.feedback?.damage(playerDamage);
         }, 430);
       }
 
+      // Re-enable controls only after the complete visual exchange, not when the
+      // fixed feedback cooldown happens to expire.
       this.schedule(() => {
         if (this.game.battle !== activeBattle || activeBattle.ending) return;
         this.feedback?.syncBattleUI();
         this.feedback?.setTurn('YOUR TURN', true);
-      }, 500);
+      }, 760);
     };
 
     this.originalCloseBattle = this.game.closeBattle.bind(this.game);
@@ -125,6 +128,7 @@ export class CreatureBattleIntegration {
       const battle = this.game.battle;
       if (victory && battle) {
         if (battle.ending) return;
+        this.clearPendingTimers();
         battle.ending = true;
         const ids = battle.animationIds || {
           player: CreatureBattleIntegration.playerId(this.game),
@@ -142,6 +146,7 @@ export class CreatureBattleIntegration {
         }, 900);
         return;
       }
+      this.clearPendingTimers();
       this.feedback?.setTurn('BATTLE ENDED', false);
       return this.originalCloseBattle(victory);
     };
