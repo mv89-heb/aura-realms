@@ -10,6 +10,7 @@ export class CreatureBattleIntegration {
     this.originalOpenBattle = null;
     this.originalCloseBattle = null;
     this.victoryTimer = 0;
+    this.victoryMessageTimer = 0;
     this.pendingTimers = new Set();
     this.attached = false;
   }
@@ -49,6 +50,7 @@ export class CreatureBattleIntegration {
     this.originalOpenBattle = this.game.openBattle.bind(this.game);
     this.game.openBattle = wild => {
       this.clearPendingTimers();
+      window.clearTimeout(this.victoryMessageTimer);
       this.originalOpenBattle(wild);
       if (this.game.battle) {
         this.game.battle.animationIds = {
@@ -97,13 +99,12 @@ export class CreatureBattleIntegration {
       const battleEnded = activeBattle.ending || activeBattle.enemy.currentHp <= 0;
 
       if (enemyDamage > 0) {
-        // The final hit must still be visible even though the original battle
-        // logic may already have marked the battle as ending.
         this.schedule(() => {
           if (this.game.battle !== activeBattle) return;
           this.playAll(ids.enemy, 'hit');
           this.feedback?.hit({ burst });
           this.feedback?.damage(enemyDamage, { burst });
+          this.feedback?.syncBattleUI();
         }, 220);
       }
 
@@ -113,11 +114,10 @@ export class CreatureBattleIntegration {
           this.playAll(ids.player, 'hit');
           this.feedback?.hit();
           this.feedback?.damage(playerDamage);
+          this.feedback?.syncBattleUI();
         }, 430);
       }
 
-      // Re-enable controls only after the complete visual exchange, not when the
-      // fixed feedback cooldown happens to expire.
       this.schedule(() => {
         if (this.game.battle !== activeBattle || activeBattle.ending) return;
         this.feedback?.syncBattleUI();
@@ -131,21 +131,23 @@ export class CreatureBattleIntegration {
       if (victory && battle) {
         if (battle.ending) return;
         this.clearPendingTimers();
+        window.clearTimeout(this.victoryMessageTimer);
         battle.ending = true;
         const ids = battle.animationIds || {
           player: CreatureBattleIntegration.playerId(this.game),
           enemy: CreatureBattleIntegration.wildId(battle.wild)
         };
 
-        this.feedback?.setTurn('VICTORY', false);
+        this.feedback?.setTurn('FINISHING MOVE', false);
         this.feedback?.syncBattleUI();
-        this.feedback?.show('VICTORY!', 1100);
 
-        // Give the finishing hit time to land before the victory animation.
+        // The final-hit feedback lands first; victory messaging follows it.
         this.schedule(() => {
           if (this.game.battle !== battle) return;
+          this.feedback?.show('VICTORY!', 900);
           this.playAll(ids.enemy, 'defeat');
           this.playAll(ids.player, 'victory');
+          this.feedback?.setTurn('VICTORY', false);
         }, 520);
 
         window.clearTimeout(this.victoryTimer);
@@ -168,7 +170,9 @@ export class CreatureBattleIntegration {
     if (!this.attached) return;
     this.clearPendingTimers();
     window.clearTimeout(this.victoryTimer);
+    window.clearTimeout(this.victoryMessageTimer);
     this.victoryTimer = 0;
+    this.victoryMessageTimer = 0;
     this.game.openBattle = this.originalOpenBattle;
     this.game.battleTurn = this.originalBattleTurn;
     this.game.closeBattle = this.originalCloseBattle;
