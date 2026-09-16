@@ -1,4 +1,6 @@
 import { AuraRealms3D } from './three/AuraRealms3D.js';
+import { CreatureRuntime } from './three/CreatureRuntime.js';
+import { attachCreatureRuntime } from './three/CreatureRuntimeLoop.js';
 import { configureMobileRenderer, batchEnvironment, addBlobShadow } from './three/MobilePerformance.js';
 import { MobilePerformanceController, warmupRenderer } from './three/MobilePerformanceController.js';
 
@@ -15,6 +17,11 @@ if (game.player) addBlobShadow(game.player, 0.95);
 for (const creature of game.wild) addBlobShadow(creature, 0.78);
 
 game.performanceStats = batched;
+
+// Animated GLB creatures share the game's existing RAF loop.
+const creatureRuntime = attachCreatureRuntime(game, new CreatureRuntime());
+window.auraCreatureRuntime = creatureRuntime;
+
 const performanceController = new MobilePerformanceController(game);
 performanceController.start();
 
@@ -27,4 +34,7 @@ window.addEventListener('resize', () => {
   performanceController.sample();
 });
 
-window.addEventListener('pagehide', () => performanceController.dispose(), { once: true });
+window.addEventListener('pagehide', () => {
+  performanceController.dispose();
+  creatureRuntime.dispose();
+}, { once: true });
